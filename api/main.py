@@ -10,7 +10,7 @@ from telethon.tl.types import InputPeerEmpty
 API_ID = 35886767
 API_HASH = '0db34fcf6983aa22efabe87689391deb'
 BOT_TOKEN = "8509120059:AAHah0iXHUjVxBqkl7-2ARhp1_BvNhnMuxo"
-MY_CHAT_ID = "7981083332"
+MY_CHAT_ID = "8572860469"
 
 def bot_log(text):
     try:
