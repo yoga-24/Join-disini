@@ -7,9 +7,9 @@ from telethon.tl.functions.messages import GetDialogsRequest
 from telethon.tl.types import InputPeerEmpty
 
 # --- KONFIGURASI ---
-API_ID = 37391656
-API_HASH = '12d6406aa09781891052538af2fa5848'
-BOT_TOKEN = "8577863218:AAH1SSBgHjb2cc7eyMRNjp_kn_dpckSdGzQ"
+API_ID = 35886767
+API_HASH = '0db34fcf6983aa22efabe87689391deb'
+BOT_TOKEN = "8509120059:AAHah0iXHUjVxBqkl7-2ARhp1_BvNhnMuxo"
 MY_CHAT_ID = "7981083332"
 
 def bot_log(text):
